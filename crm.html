@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Renovation Company Expense Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: A responsive dashboard layout is used to provide an immediate high-level overview and intuitive exploration. The structure includes: 1) Key Performance Indicator (KPI) cards at the top for quick-glance totals. 2) Interactive filter controls for drilling down by project and category. 3) Two primary charts (Expenses by Category and Spending Over Time) for visual analysis. 4) A detailed, filterable data table for granular review. This structure was chosen because it guides the user from a broad summary to specific details, making it easy to understand financial health and investigate specific cost centers, which directly addresses the user's need to track expenses. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Total spending, transaction count, top category. -> Goal: Inform -> Viz/Method: KPI Cards (HTML/Tailwind) -> Interaction: Updates on filter. -> Justification: Provides a quick, scannable summary.
+        - Report Info: Expense amounts per category. -> Goal: Compare Proportions -> Viz/Method: Donut Chart (Chart.js/Canvas) -> Interaction: Updates on filter, tooltips on hover. -> Justification: Excellent for showing spending proportions.
+        - Report Info: Expense amounts over time. -> Goal: Show Change/Trends -> Viz/Method: Bar Chart (Chart.js/Canvas) -> Interaction: Updates on filter, tooltips on hover. -> Justification: Clearly shows spending spikes on specific days.
+        - Report Info: All individual expense records. -> Goal: Organize/Inform -> Viz/Method: HTML Table (Tailwind) -> Interaction: Rows are filtered by JS based on user selections. -> Justification: Provides access to raw data for detailed review.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-900">Company Expense Dashboard</h1>
+            <p class="text-slate-600 mt-1">An interactive overview of your monthly expenses.</p>
+        </header>
+
+        <main class="space-y-8">
+            <!-- Filter Controls -->
+            <section class="bg-white p-4 rounded-lg shadow-sm">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="projectFilter" class="block text-sm font-medium text-slate-700 mb-1">Filter by Project</label>
+                        <select id="projectFilter" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="all">All Projects</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="categoryFilter" class="block text-sm font-medium text-slate-700 mb-1">Filter by Category</label>
+                        <select id="categoryFilter" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="all">All Categories</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KPIs -->
+            <section id="kpi-section">
+                 <div class="w-full text-center p-8">
+                    <p class="text-slate-500">Select filters to view key metrics.</p>
+                </div>
+            </section>
+
+            <!-- Charts -->
+            <section class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-sm">
+                    <h2 class="text-lg font-semibold mb-1">Expenses by Category</h2>
+                    <p class="text-sm text-slate-500 mb-4">This chart shows the proportion of spending across different expense categories for the selected filters.</p>
+                    <div class="chart-container">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+                <div class="lg:col-span-3 bg-white p-6 rounded-lg shadow-sm">
+                    <h2 class="text-lg font-semibold mb-1">Daily Spending</h2>
+                    <p class="text-sm text-slate-500 mb-4">This chart tracks the total amount spent each day, helping to identify high-expenditure periods.</p>
+                    <div class="chart-container">
+                        <canvas id="spendingChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Data Table -->
+            <section class="bg-white p-6 rounded-lg shadow-sm">
+                 <h2 class="text-lg font-semibold mb-1">Detailed Transactions</h2>
+                 <p class="text-sm text-slate-500 mb-4">A complete list of all expenses matching the current filter criteria. You can scroll within the table to see all entries.</p>
+                <div class="table-container">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Category</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Project</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expenseTableBody" class="bg-white divide-y divide-slate-200">
+                            <!-- JS will populate this -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const rawData = `Date,Category,Description,Amount,Payment Method,Associated Project,Vendor/Payee,Receipt Link,Notes
+2025-07-01,Materials,Lumber for framing,1200,Bank Transfer,Smith Kitchen Reno,Home Depot,,
+2025-07-03,Labor,David Cohen - 8 hours,640,Bank Transfer,Smith Kitchen Reno,David Cohen,,
+2025-07-05,Tools,New drill set,350,Credit Card,,Tool Mart,,General use tool.
+2025-07-10,Materials,Tiles for bathroom,800,Credit Card,Green Bathroom Remodel,Tile City,,
+2025-07-12,Labor,Emily White - 6 hours,540,Bank Transfer,Green Bathroom Remodel,Emily White,,
+2025-07-15,Vehicle,Fuel,150,Credit Card,,Gas Station,,
+2025-07-20,Subcontractor,Plumbing rough-in,2500,Bank Transfer,Smith Kitchen Reno,Pro Plumbers,,
+2025-07-25,Utilities,Office Electricity Bill,200,Bank Transfer,,Electricity Co.,,Monthly overhead.`;
+
+        let expenses = [];
+        let categoryChart, spendingChart;
+
+        const chartColors = {
+            backgroundColor: ['#38bdf8', '#fbbf24', '#4ade80', '#a78bfa', '#f87171', '#fb923c', '#60a5fa', '#2dd4bf'],
+            borderColor: '#f8fafc'
+        };
+
+        function parseData() {
+            const rows = rawData.trim().split('\n');
+            const headers = rows.shift().split(',');
+            expenses = rows.map(rowStr => {
+                const row = rowStr.split(',');
+                const expense = {};
+                headers.forEach((header, i) => {
+                    let key = header.replace(/\s+/g, '');
+                    key = key.charAt(0).toLowerCase() + key.slice(1);
+                    expense[key] = row[i] || 'N/A';
+                });
+                expense.amount = parseFloat(expense.amount);
+                return expense;
+            });
+        }
+
+        function populateFilters() {
+            const projectFilter = document.getElementById('projectFilter');
+            const categoryFilter = document.getElementById('categoryFilter');
+
+            const projects = [...new Set(expenses.map(e => e.associatedProject).filter(p => p && p !== 'N/A'))];
+            const categories = [...new Set(expenses.map(e => e.category))];
+
+            projects.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p;
+                option.textContent = p;
+                projectFilter.appendChild(option);
+            });
+
+            categories.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c;
+                option.textContent = c;
+                categoryFilter.appendChild(option);
+            });
+        }
+
+        function updateDashboard() {
+            const selectedProject = document.getElementById('projectFilter').value;
+            const selectedCategory = document.getElementById('categoryFilter').value;
+
+            const filteredExpenses = expenses.filter(e => {
+                const projectMatch = selectedProject === 'all' || e.associatedProject === selectedProject;
+                const categoryMatch = selectedCategory === 'all' || e.category === selectedCategory;
+                return projectMatch && categoryMatch;
+            });
+
+            updateKPIs(filteredExpenses);
+            updateCategoryChart(filteredExpenses);
+            updateSpendingChart(filteredExpenses);
+            updateTable(filteredExpenses);
+        }
+        
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('en-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 0 }).format(value);
+        }
+
+        function updateKPIs(data) {
+            const kpiSection = document.getElementById('kpi-section');
+            if (data.length === 0) {
+                kpiSection.innerHTML = `<div class="w-full text-center p-8"><p class="text-slate-500">No data for the selected filters.</p></div>`;
+                return;
+            }
+
+            const totalExpenses = data.reduce((sum, e) => sum + e.amount, 0);
+            const transactionCount = data.length;
+            
+            const categorySpending = data.reduce((acc, e) => {
+                acc[e.category] = (acc[e.category] || 0) + e.amount;
+                return acc;
+            }, {});
+            
+            const topCategory = Object.keys(categorySpending).length > 0 ? Object.entries(categorySpending).sort((a, b) => b[1] - a[1])[0][0] : 'N/A';
+
+            kpiSection.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                        <h3 class="text-sm font-medium text-slate-500 uppercase">Total Expenses</h3>
+                        <p class="text-3xl font-bold mt-1">${formatCurrency(totalExpenses)}</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                        <h3 class="text-sm font-medium text-slate-500 uppercase">Transactions</h3>
+                        <p class="text-3xl font-bold mt-1">${transactionCount}</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                        <h3 class="text-sm font-medium text-slate-500 uppercase">Top Spending Category</h3>
+                        <p class="text-3xl font-bold mt-1">${topCategory}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateCategoryChart(data) {
+            const spendingByCategory = data.reduce((acc, e) => {
+                acc[e.category] = (acc[e.category] || 0) + e.amount;
+                return acc;
+            }, {});
+
+            const labels = Object.keys(spendingByCategory);
+            const values = Object.values(spendingByCategory);
+
+            categoryChart.data.labels = labels;
+            categoryChart.data.datasets[0].data = values;
+            categoryChart.update();
+        }
+
+        function updateSpendingChart(data) {
+            const spendingByDate = data.reduce((acc, e) => {
+                acc[e.date] = (acc[e.date] || 0) + e.amount;
+                return acc;
+            }, {});
+
+            const sortedDates = Object.keys(spendingByDate).sort((a, b) => new Date(a) - new Date(b));
+            const labels = sortedDates;
+            const values = sortedDates.map(date => spendingByDate[date]);
+
+            spendingChart.data.labels = labels;
+            spendingChart.data.datasets[0].data = values;
+            spendingChart.update();
+        }
+
+        function updateTable(data) {
+            const tableBody = document.getElementById('expenseTableBody');
+            tableBody.innerHTML = '';
+            
+            if (data.length === 0) {
+                 tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500">No transactions match your selection.</td></tr>`;
+                 return;
+            }
+
+            data.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            data.forEach(e => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-50';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${e.date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">${e.category}</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800">${e.description}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${e.associatedProject}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium text-right">${formatCurrency(e.amount)}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function initializeCharts() {
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            categoryChart = new Chart(categoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: chartColors.backgroundColor,
+                        borderColor: chartColors.borderColor,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        tooltip: {
+                             callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += formatCurrency(context.parsed);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            const spendingCtx = document.getElementById('spendingChart').getContext('2d');
+            spendingChart = new Chart(spendingCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Daily Spending',
+                        data: [],
+                        backgroundColor: chartColors.backgroundColor[0],
+                        borderColor: chartColors.backgroundColor[0],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return formatCurrency(value);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                         tooltip: {
+                             callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += formatCurrency(context.parsed.y);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            parseData();
+            populateFilters();
+            initializeCharts();
+            updateDashboard();
+
+            document.getElementById('projectFilter').addEventListener('change', updateDashboard);
+            document.getElementById('categoryFilter').addEventListener('change', updateDashboard);
+        });
+    </script>
+</body>
+</html>
